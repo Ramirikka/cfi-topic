@@ -149,3 +149,63 @@ To test the share preview: https://www.opengraph.xyz/url/https%3A%2F%2Fcfihot.ne
 The Newsletter Cover Image project (`/Users/ramirikka/Newsletter Cover Image/dist`) retains the
 original gradient implementation in its compiled JS bundle and was used as the reference
 to restore the gradient here.
+
+---
+
+## PNG Export
+
+Exported files are named `Hot-Topic-MMDD.png` (e.g. `Hot-Topic-0525.png`) and downloaded automatically.
+
+### Gradient in the exported PNG
+
+The compiled JS draws onto a canvas and calls `canvas.toBlob('image/png')` — CSS `::after` styles
+are not visible on a canvas. To bake the gradient into the exported PNG, `index.html` patches
+`HTMLCanvasElement.prototype.toBlob` to intercept the 690×254 export and draw the gradient
+onto the canvas before encoding.
+
+### Alpha channel fix (CMS compatibility)
+
+Browser canvas always exports as **RGBA PNG** (with an alpha/transparency channel). Some CMSes
+reject RGBA PNGs and only accept **RGB PNGs** (no alpha) — the same format Windows Paint produces.
+
+**Fix:** The `toBlob` patch composites the canvas onto a fresh canvas with a solid black background
+before encoding. This ensures every pixel is fully opaque, producing an RGB-equivalent PNG that
+CMSes accept.
+
+The full patch in `index.html`:
+
+```js
+(function () {
+  var _toBlob = HTMLCanvasElement.prototype.toBlob;
+  HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+    if (this.width === 690 && this.height === 254) {
+      var flat = document.createElement('canvas');
+      flat.width = 690;
+      flat.height = 254;
+      var ctx = flat.getContext('2d');
+
+      // Solid background — eliminates alpha channel
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 690, 254);
+
+      // Draw original canvas layers
+      ctx.drawImage(this, 0, 0);
+
+      // Draw brand gradient on top
+      var grad = ctx.createLinearGradient(0, 0, 690, 0);
+      grad.addColorStop(0.00, 'rgba(5,   0,  68, 0.80)');
+      grad.addColorStop(0.15, 'rgba(9,   0, 122, 0.51)');
+      grad.addColorStop(0.30, 'rgba(9,   0, 130, 0.29)');
+      grad.addColorStop(0.45, 'rgba(10,  0, 136, 0.13)');
+      grad.addColorStop(0.60, 'rgba(10,  0, 140, 0.03)');
+      grad.addColorStop(0.75, 'rgba(10,  0, 143, 0.00)');
+      grad.addColorStop(1.00, 'rgba(10,  0, 143, 0.00)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 690, 254);
+
+      return _toBlob.call(flat, callback, type, quality);
+    }
+    return _toBlob.call(this, callback, type, quality);
+  };
+})();
+```
