@@ -24,5 +24,50 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        // Restore the left-to-right brand gradient overlay on the preview frame.
+        // Gradient computed from: S='#050044', C='#0A008F', stops matching Newsletter Cover Image.
+        var GRADIENT =
+          'linear-gradient(' +
+          '90deg,' +
+          'rgba(5, 0, 68, 0.80) 0%,' +
+          'rgba(9, 0, 122, 0.51) 15%,' +
+          'rgba(9, 0, 130, 0.29) 30%,' +
+          'rgba(10, 0, 136, 0.13) 45%,' +
+          'rgba(10, 0, 140, 0.03) 60%,' +
+          'rgba(10, 0, 143, 0.00) 75%,' +
+          'rgba(10, 0, 143, 0.00) 100%' +
+          ')';
+
+        function injectGradient(frame) {
+          if (frame.dataset.gradientPatched) return;
+          frame.dataset.gradientPatched = '1';
+          var overlay = document.createElement('div');
+          overlay.style.cssText =
+            'position:absolute;inset:0;pointer-events:none;background:' + GRADIENT + ';z-index:2;';
+          overlay.setAttribute('data-gradient-overlay', '1');
+          frame.appendChild(overlay);
+        }
+
+        function scanFrames() {
+          var frames = document.querySelectorAll('.preview-frame');
+          frames.forEach(injectGradient);
+        }
+
+        var observer = new MutationObserver(function (mutations) {
+          var needsScan = false;
+          mutations.forEach(function (m) {
+            m.addedNodes.forEach(function (n) {
+              if (n.nodeType === 1) needsScan = true;
+            });
+          });
+          if (needsScan) scanFrames();
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+        scanFrames();
+      })();
+    </script>
   </body>
 </html>
